@@ -1,3 +1,4 @@
+import java.util.Properties
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
@@ -19,24 +20,8 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
-    /* 
-    https://play.google.com/console/u/0/developers/9004578905216647982/app/4972194241585353410/tracks/internal-testing
-    adb shell am start -a android.intent.action.VIEW -d "market://details?id=com.frankgp.player" 
-    https://play.google.com/store/apps/details?id=com.frankgp.player
-    */
-
-    signingConfigs {
-        create("release") {
-            storeFile = file("E:/dev/android/release.keystore")
-            storePassword = "android"
-            keyAlias = "androiddebugkey"
-            keyPassword = "android"
-        }
-    }
-
     buildTypes {
         release {
-            signingConfig = signingConfigs.getByName("release")
             optimization {
                 enable = false
             }
@@ -74,4 +59,33 @@ dependencies {
     androidTestImplementation(libs.androidx.junit)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
     debugImplementation(libs.androidx.compose.ui.tooling)
+}
+
+// app-publisher: release signing from local.properties or environment
+val appPublisherLocalProperties = Properties()
+val appPublisherLocalPropertiesFile = rootProject.file("local.properties")
+if (appPublisherLocalPropertiesFile.exists()) {
+    appPublisherLocalPropertiesFile.inputStream().use { appPublisherLocalProperties.load(it) }
+}
+fun appPublisherSigningValue(name: String): String? =
+    System.getenv(name)?.takeIf { it.isNotBlank() }
+        ?: appPublisherLocalProperties.getProperty(name)?.takeIf { it.isNotBlank() }
+
+val appPublisherKeystoreFile = appPublisherSigningValue("KEYSTORE_FILE")
+if (!appPublisherKeystoreFile.isNullOrBlank()) {
+    android {
+        signingConfigs {
+            create("appPublisherRelease") {
+                storeFile = file(appPublisherKeystoreFile)
+                storePassword = appPublisherSigningValue("KEYSTORE_PASSWORD")
+                keyAlias = appPublisherSigningValue("KEY_ALIAS")
+                keyPassword = appPublisherSigningValue("KEY_PASSWORD")
+            }
+        }
+        buildTypes {
+            getByName("release") {
+                signingConfig = signingConfigs.getByName("appPublisherRelease")
+            }
+        }
+    }
 }
